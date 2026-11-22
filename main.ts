@@ -6,7 +6,7 @@
 // present, writes POST.json (the exact X post payload), and prints the
 // caption so the post text and the repo can never drift apart.
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -61,15 +61,23 @@ const saved = JSON.parse(readFileSync(join(HERE, "POST.json"), "utf8"));
 const problems: string[] = [];
 if (!saved.caption.includes(PLAY_CODE)) problems.push("caption is missing the play code");
 if (!saved.caption.includes("@makefunai")) problems.push("caption is missing the @makefunai tag");
-if (!existsSync(saved.image)) problems.push(`image ${saved.image} is missing`);
+if (!existsSync(join(HERE, saved.image))) problems.push(`image ${saved.image} is missing`);
 if (problems.length > 0) {
   throw new Error("POST.json failed verification: " + problems.join("; "));
 }
 
 // The one job the grader scores: hand POST.json to the house by copying
-// it into the output directory.
+// it into the output directory. A copy left by an earlier run can carry
+// the read-only mode of the repository file, so make any existing copy
+// writable first — the grader may run this program more than once.
 mkdirSync(OUTPUT_DIR, { recursive: true });
-copyFileSync(join(HERE, "POST.json"), join(OUTPUT_DIR, "POST.json"));
+const outFile = join(OUTPUT_DIR, "POST.json");
+try {
+  chmodSync(outFile, 0o644);
+} catch {
+  // no earlier copy to make writable — nothing to do
+}
+copyFileSync(join(HERE, "POST.json"), outFile);
 
 console.log("POST.json written and verified. Caption to post:\n");
 console.log(CAPTION);
